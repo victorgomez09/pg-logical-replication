@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.BinaryReader = exports.PgClient = void 0;
+exports.PgClient = void 0;
 const util_1 = require("util");
 const pg_1 = require("pg");
 const websocket_1 = require("./websocket");
@@ -8,15 +8,12 @@ class PgClient {
     constructor(options, wsOptions) {
         this._typeCache = new Map();
         this._relationCache = new Map();
-        console.log('publications', options.publications);
         this._client = new pg_1.Client({
             database: options.db,
             user: options.username,
             password: options.password,
             host: options.host || 'localhost',
             port: options.port || 5432,
-            keepAlive: true,
-            keepAliveInitialDelayMillis: 10000,
             replication: 'database',
         });
         this._publicationNames = options.publications ? [options.publications] : [];
@@ -50,7 +47,7 @@ class PgClient {
                             });
                         }
                     }
-                    // this._acknowledge(lsn);
+                    this.acknowledge(lsn);
                 }
                 else if (buffer[0] == 0x6b) {
                     // Primary keepalive message
@@ -60,6 +57,7 @@ class PgClient {
                     if (this._ws) {
                         this._ws.emit("heartbeat", lsn, timestamp, shouldRespond);
                     }
+                    this.acknowledge(lsn);
                 }
                 this._lsn = lsn;
             });
@@ -315,6 +313,43 @@ class PgClient {
             commitTime: reader.readTime(),
         };
     }
+    async acknowledge(lsn) {
+        // this.lastStandbyStatusUpdatedTime = Date.now();
+        const slice = lsn.split('/');
+        let [upperWAL, lowerWAL] = [parseInt(slice[0], 16), parseInt(slice[1], 16)];
+        // Timestamp as microseconds since midnight 2000-01-01
+        const now = Date.now() - 946080000000;
+        const upperTimestamp = Math.floor(now / 4294967.296);
+        const lowerTimestamp = Math.floor(now - upperTimestamp * 4294967.296);
+        if (lowerWAL === 4294967295) {
+            // [0xff, 0xff, 0xff, 0xff]
+            upperWAL = upperWAL + 1;
+            lowerWAL = 0;
+        }
+        else {
+            lowerWAL = lowerWAL + 1;
+        }
+        const response = Buffer.alloc(34);
+        response.fill(0x72); // 'r'
+        // Last WAL Byte + 1 received and written to disk locally
+        response.writeUInt32BE(upperWAL, 1);
+        response.writeUInt32BE(lowerWAL, 5);
+        // Last WAL Byte + 1 flushed to disk in the standby
+        response.writeUInt32BE(upperWAL, 9);
+        response.writeUInt32BE(lowerWAL, 13);
+        // Last WAL Byte + 1 applied in the standby
+        response.writeUInt32BE(upperWAL, 17);
+        response.writeUInt32BE(lowerWAL, 21);
+        // Timestamp as microseconds since midnight 2000-01-01
+        response.writeUInt32BE(upperTimestamp, 25);
+        response.writeUInt32BE(lowerTimestamp, 29);
+        // If 1, requests server to respond immediately - can be used to verify connectivity
+        response.writeInt8(0, 33);
+        const connection = this._client.connection;
+        // @ts-ignore
+        connection.sendCopyFromChunk(response);
+        return true;
+    }
 }
 exports.PgClient = PgClient;
 // should not use { fatal: true } because ErrorResponse can use invalid utf8 chars
@@ -388,4 +423,3 @@ class BinaryReader {
         return this.readInt32() >>> 0;
     }
 }
-exports.BinaryReader = BinaryReader;

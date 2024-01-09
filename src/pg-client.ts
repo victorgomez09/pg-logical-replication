@@ -14,17 +14,14 @@ export class PgClient {
   private _lsn: string;
 
   constructor(options: PgClientOptions, wsOptions?: WebSocketOptions) {
-    console.log('publications', options.publications)
     this._client = new Client({
       database: options.db,
       user: options.username,
       password: options.password,
       host: options.host || 'localhost',
       port: options.port || 5432,
-      keepAlive: true,
-      keepAliveInitialDelayMillis: 10000,
       replication: 'database',
-    } as Client & { replication: string, keepAlive: boolean, keepAliveInitialDelayMillis: number });
+    } as Client & { replication: string });
     this._publicationNames = options.publications ? [options.publications] : []
     this._lsn = ''
 
@@ -64,7 +61,7 @@ export class PgClient {
               });
             }
           }
-          // this._acknowledge(lsn);
+          this.acknowledge(lsn);
         } else if (buffer[0] == 0x6b) {
           // Primary keepalive message
           const timestamp = Math.floor(
@@ -75,6 +72,7 @@ export class PgClient {
           if (this._ws) {
             this._ws.emit("heartbeat", lsn, timestamp, shouldRespond);
           }
+          this.acknowledge(lsn);
         }
 
         this._lsn = lsn
@@ -85,7 +83,7 @@ export class PgClient {
         `publication_names '${this._publicationNames || [].join(',')}'`,
       ];
 
-      const sql = `START_REPLICATION SLOT "${slotName}" LOGICAL ${this._lsn ||"0/00000000"} (${options.join(', ')})`;
+      const sql = `START_REPLICATION SLOT "${slotName}" LOGICAL ${this._lsn || "0/00000000"} (${options.join(', ')})`;
 
       return this._client.query(sql);
     } catch (error) {
@@ -374,15 +372,63 @@ export class PgClient {
       commitTime: reader.readTime(),
     };
   }
+
+  private async acknowledge(lsn: string): Promise<boolean> {
+    // this.lastStandbyStatusUpdatedTime = Date.now();
+
+    const slice = lsn.split('/');
+    let [upperWAL, lowerWAL]: [number, number] = [parseInt(slice[0], 16), parseInt(slice[1], 16)];
+
+    // Timestamp as microseconds since midnight 2000-01-01
+    const now = Date.now() - 946080000000;
+    const upperTimestamp = Math.floor(now / 4294967.296);
+    const lowerTimestamp = Math.floor(now - upperTimestamp * 4294967.296);
+
+    if (lowerWAL === 4294967295) {
+      // [0xff, 0xff, 0xff, 0xff]
+      upperWAL = upperWAL + 1;
+      lowerWAL = 0;
+    } else {
+      lowerWAL = lowerWAL + 1;
+    }
+
+    const response = Buffer.alloc(34);
+    response.fill(0x72); // 'r'
+
+    // Last WAL Byte + 1 received and written to disk locally
+    response.writeUInt32BE(upperWAL, 1);
+    response.writeUInt32BE(lowerWAL, 5);
+
+    // Last WAL Byte + 1 flushed to disk in the standby
+    response.writeUInt32BE(upperWAL, 9);
+    response.writeUInt32BE(lowerWAL, 13);
+
+    // Last WAL Byte + 1 applied in the standby
+    response.writeUInt32BE(upperWAL, 17);
+    response.writeUInt32BE(lowerWAL, 21);
+
+    // Timestamp as microseconds since midnight 2000-01-01
+    response.writeUInt32BE(upperTimestamp, 25);
+    response.writeUInt32BE(lowerTimestamp, 29);
+
+    // If 1, requests server to respond immediately - can be used to verify connectivity
+    response.writeInt8(0, 33);
+
+    const connection: Connection = (this._client as Client & { connection: Connection }).connection;
+    // @ts-ignore
+    connection.sendCopyFromChunk(response);
+
+    return true;
+  }
 }
 
 // should not use { fatal: true } because ErrorResponse can use invalid utf8 chars
 const textDecoder = new TextDecoder()
 
 // https://www.postgresql.org/docs/14/protocol-message-types.html
-export class BinaryReader {
+class BinaryReader {
   _p = 0
-  constructor(private _b: Uint8Array) {}
+  constructor(private _b: Uint8Array) { }
 
   readUint8() {
     this.checkSize(1)
@@ -468,4 +514,5 @@ export class BinaryReader {
   readUint32() {
     return this.readInt32() >>> 0
   }
+
 }
