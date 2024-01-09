@@ -1,112 +1,25 @@
 {
-  "name": "pg-logical-replication",
-  "version": "2.0.3",
-  "description": "PostgreSQL Location Replication client - logical WAL replication streaming",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "name": "with-postgres",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
   "scripts": {
-    "test": "jest --maxWorkers=1",
-    "test:watch": "jest --watch",
-    "build": "rm -rf dist/* ; tsc -p tsconfig.build.json",
-    "publish": "npm run build && npm publish --access public"
+    "build": "npx tsc -p ./tsconfig.build.json",
+    "test": "npx tsc ./test/index.ts"
   },
-  "keywords": [
-    "postgres",
-    "postgresql",
-    "pg",
-    "libpq",
-    "database",
-    "rdbms",
-    "replication",
-    "logical",
-    "logical-decoding",
-    "logical-replication",
-    "cdc",
-    "wal2json",
-    "pgoutput",
-    "decoderbufs",
-    "typescript",
-    "nodejs"
-  ],
-  "homepage": "http://github.com/kibae/pg-logical-replication",
-  "repository": {
-    "type": "git",
-    "url": "git://github.com/kibae/pg-logical-replication.git"
-  },
-  "author": {
-    "name": "Kibae Shin",
-    "email": "kibae.shin@gmail.com",
-    "url": "https://github.com/kibae"
-  },
-  "contributors": [
-    {
-      "name": "Jón Tómas Grétarsson",
-      "email": "jon.gretarsson@gmail.com",
-      "url": "https://github.com/jontg"
-    },
-    {
-      "name": "Jaryl Sim",
-      "email": "jaryl@tinkerbox.com.sg",
-      "url": "https://github.com/jaryl"
-    },
-    {
-      "name": "Caleb",
-      "email": "caleb.bertsch@gmail.com",
-      "url": "https://github.com/c4l3b"
-    },
-    {
-      "name": "Matt R. Wilson",
-      "email": "github.public@mattw.co",
-      "url": "https://github.com/mastermatt"
-    }
-  ],
-  "files": [
-    "dist/**/*",
-    "*.md"
-  ],
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
   "devDependencies": {
-    "@types/jest": "^28.1.6",
-    "@types/node": "^14.14.31",
-    "@types/pg": "^8.6.5",
-    "jest": "^28.1.3",
-    "jest-junit": "^14.0.0",
-    "prettier": "^2.7.1",
-    "protobufjs": "^7.0.0",
-    "ts-jest": "^28.0.7",
-    "ts-node": "^10.9.1",
-    "typescript": "^4.7.4"
+    "@types/node": "^20.10.6",
+    "@types/pg": "^8.10.9",
+    "express": "^4.18.2",
+    "typescript": "^5.3.3"
   },
   "dependencies": {
-    "eventemitter2": ">=6.4.0",
-    "pg": ">=6.2.2"
-  },
-  "license": "MIT",
-  "engines": {
-    "node": ">= 14.0.0"
-  },
-  "jest": {
-    "moduleFileExtensions": [
-      "js",
-      "json",
-      "ts"
-    ],
-    "rootDir": ".",
-    "testRegex": ".*\\.spec\\.ts$",
-    "transform": {
-      "^.+\\.(t|j)s$": "ts-jest"
-    },
-    "collectCoverageFrom": [
-      "**/*.(t|j)s"
-    ],
-    "testEnvironment": "node",
-    "roots": [
-      "<rootDir>/src/"
-    ],
-    "reporters": [
-      "default",
-      "jest-junit"
-    ],
-    "maxConcurrency": 1,
-    "maxWorkers": 1
+    "pg": "^8.11.3",
+    "postgres": "^3.4.3",
+    "socket.io": "^4.7.3",
+    "socket.io-client": "^4.7.3"
   }
 }
